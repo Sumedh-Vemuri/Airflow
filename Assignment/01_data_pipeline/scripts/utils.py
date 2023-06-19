@@ -13,7 +13,7 @@ from sqlite3 import Error
 # Define the function to build database
 ###############################################################################
 
-def build_dbs():
+def build_dbs(DB_FILE_NAME,DB_PATH):
     '''
     This function checks if the db file with specified name is present 
     in the /Assignment/01_data_pipeline/scripts folder. If it is not present it creates 
@@ -40,12 +40,24 @@ def build_dbs():
     SAMPLE USAGE
         build_dbs()
     '''
+    db_file = os.path.join(DB_PATH, DB_FILE_NAME)
+    if os.path.exists(db_file):
+        print('DB Already Exists')
+        return 'DB Exists'
+
+    # If the db file is not present, create it
+    print('Creating Database')
+    conn = sqlite3.connect(db_file)
+    conn.close()
+
+    print('New DB Created')
+    return 'DB created'
 
 ###############################################################################
 # Define function to load the csv file to the database
 ###############################################################################
 
-def load_data_into_db():
+def load_data_into_db(DB_FILE_NAME,DB_PATH, DATA_DIRECTORY):
     '''
     Thie function loads the data present in data directory into the db
     which was created previously.
@@ -69,14 +81,30 @@ def load_data_into_db():
     SAMPLE USAGE
         load_data_into_db()
     '''
+    # Read the CSV file into a pandas DataFrame
+    csv_file = DATA_DIRECTORY + '/leadscoring.csv'
+    df = pd.read_csv(csv_file)
 
+    # Replace null values in 'total_leads_dropped' and 'referred_lead' columns with 0
+    df['total_leads_droppped'].fillna(0, inplace=True)
+    df['referred_lead'].fillna(0, inplace=True)
+
+    # Create a connection to the SQLite database
+    db_file = DB_PATH + '/' + DB_FILE_NAME
+    conn = sqlite3.connect(db_file)
+
+    # Save the DataFrame as a table in the database
+    df.to_sql('loaded_data', conn, if_exists='replace', index=False)
+
+    # Close the database connection
+    conn.close()
 
 ###############################################################################
 # Define function to map cities to their respective tiers
 ###############################################################################
 
     
-def map_city_tier():
+def map_city_tier(DB_FILE_NAME, DB_PATH):
     '''
     This function maps all the cities to their respective tier as per the
     mappings provided in the city_tier_mapping.py file. If a
@@ -95,19 +123,42 @@ def map_city_tier():
         Saves the processed dataframe in the db in a table named
         'city_tier_mapped'. If the table with the same name already 
         exsists then the function replaces it.
-
+    
     
     SAMPLE USAGE
         map_city_tier()
 
     '''
+    # Create a connection to the SQLite database
+    db_file = DB_PATH + '/' + DB_FILE_NAME
+    conn = sqlite3.connect(db_file)
+    
+    from city_tier_mapping import city_tier_mapping as city
+    # Read the existing data from the city_tier_mapping.py file
+    city_tier_data = city
+
+    # Read the existing data from the database into a pandas DataFrame
+    query = "SELECT * FROM loaded_data"  # Assuming loaded_data table exists
+    df = pd.read_sql(query, conn)
+
+    # Map the cities to their respective tier
+    df['city_tier'] = df['city_mapped'].map(city_tier_data)
+    df['city_tier'].fillna(3.0, inplace=True)  # Fill missing tier with 3.0 (tier-3)
+
+    # Save the mapped DataFrame as a table in the database
+    df.to_sql('city_tier_mapped', conn, if_exists='replace', index=False)
+
+    # Close the database connection
+    conn.close()
+
+
 
 ###############################################################################
 # Define function to map insignificant categorial variables to "others"
 ###############################################################################
 
 
-def map_categorical_vars():
+def map_categorical_vars(DB_FILE_NAME, DB_PATH):
     '''
     This function maps all the insignificant variables present in 'first_platform_c'
     'first_utm_medium_c' and 'first_utm_source_c'. The list of significant variables
@@ -138,12 +189,36 @@ def map_categorical_vars():
     SAMPLE USAGE
         map_categorical_vars()
     '''
+     # Create a connection to the SQLite database
+    db_file = DB_PATH + '/' + DB_FILE_NAME
+    conn = sqlite3.connect(db_file)
+    
+    from significant_categorical_level import list_platform, list_medium, list_source
+
+    # Read the existing data from the database into a pandas DataFrame
+    query = "SELECT * FROM city_tier_mapped"
+    df = pd.read_sql(query, conn)
+
+    # Map insignificant variables in 'first_platform_c'
+    df.loc[~df['first_platform_c'].isin(list_platform), 'first_platform_c'] = 'Other'
+
+    # Map insignificant variables in 'first_utm_medium_c'
+    df.loc[~df['first_utm_medium_c'].isin(list_medium), 'first_utm_medium_c'] = 'Other'
+
+    # Map insignificant variables in 'first_utm_source_c'
+    df.loc[~df['first_utm_source_c'].isin(list_source), 'first_utm_source_c'] = 'Other'
+
+    # Save the mapped DataFrame as a table in the database
+    df.to_sql('categorical_variables_mapped', conn, if_exists='replace', index=False)
+
+    # Close the database connection
+    conn.close()
 
 
 ##############################################################################
 # Define function that maps interaction columns into 4 types of interactions
 ##############################################################################
-def interactions_mapping():
+def interactions_mapping(DB_FILE_NAME, DB_PATH, INTERACTION_MAPPING, INDEX_COLUMNS_TRAINING, INDEX_COLUMNS_INFERENCE, NOT_FEATURES):
     '''
     This function maps the interaction columns into 4 unique interaction columns
     These mappings are present in 'interaction_mapping.csv' file. 
@@ -181,4 +256,55 @@ def interactions_mapping():
         interactions_mapping()
     '''
     
-   
+   # Create a connection to the SQLite database
+    db_file = DB_PATH + '/' + DB_FILE_NAME
+    conn = sqlite3.connect(db_file)
+
+    # Read the existing data from the database into a pandas DataFrame
+    query = "SELECT * FROM categorical_variables_mapped"
+    df = pd.read_sql(query, conn)
+    
+    # Read the interaction mappings from the CSV file
+    interaction_df = pd.read_csv(INTERACTION_MAPPING)
+    
+#     # Perform interaction mapping
+#     for i, row in interaction_df.iterrows():
+#         interaction_cols = row['interaction_type'].split(' x ')
+#         new_interaction_col = row['interaction_mapping']
+        
+#         # Create a new interaction column with mapped values
+#         df[new_interaction_col] = df[interaction_cols].apply(lambda x: ' '.join(x.dropna().astype(str)), axis=1)
+    
+    df_unpivot = pd.melt(df, id_vars=['created_date', 'first_platform_c',
+       'first_utm_medium_c', 'first_utm_source_c', 'total_leads_droppped', 'city_tier',
+       'referred_lead', 'app_complete_flag'], var_name='interaction_type', value_name='interaction_value')
+    
+    # handle the nulls in the interaction value column
+    df_unpivot['interaction_value'] = df_unpivot['interaction_value'].fillna(0)
+    
+    # map interaction type column with the mapping file to get interaction mapping
+    df = pd.merge(df_unpivot, df_event_mapping, on='interaction_type', how='left')
+    
+        
+    # Drop the original interaction columns
+    df.drop(interaction_df['interaction_type'], axis=1, inplace=True)
+
+    df_pivot = df.pivot_table(
+        values='interaction_value', index=['created_date', 'city_tier', 'first_platform_c',
+       'first_utm_medium_c', 'first_utm_source_c', 'total_leads_droppped',
+       'referred_lead', 'app_complete_flag'], columns='interaction_mapping', aggfunc='sum')
+    df = df_pivot.reset_index()
+    
+    # Drop the features that are not required
+    df.drop(NOT_FEATURES, axis=1, inplace=True)
+
+    # Save the mapped DataFrame as a table in the database
+    df.to_sql('interactions_mapped', conn, if_exists='replace', index=False)
+
+    # Save the model input DataFrame as a table in the database
+    model_input = df.set_index(INDEX_COLUMNS_TRAINING if 'app_complete_flag' in df.columns else INDEX_COLUMNS_INFERENCE)
+    model_input.to_sql('model_input', conn, if_exists='replace')
+    
+    # Close the database connection
+    conn.close()
+    

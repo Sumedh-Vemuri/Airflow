@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 default_args = {
     'owner': 'airflow',
-    'start_date': datetime(2022,7,30),
+    'start_date': datetime(2023,6,19),
     'retries' : 1, 
     'retry_delay' : timedelta(seconds=5)
 }
