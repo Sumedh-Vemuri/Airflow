@@ -82,8 +82,8 @@ def load_data_into_db(DB_FILE_NAME,DB_PATH, DATA_DIRECTORY):
         load_data_into_db()
     '''
     # Read the CSV file into a pandas DataFrame
-    csv_file = DATA_DIRECTORY + '/leadscoring.csv'
-    df = pd.read_csv(csv_file)
+    csv_file = DATA_DIRECTORY + '/leadscoring_test.csv'
+    df = pd.read_csv(csv_file,index_col= 0)
 
     # Replace null values in 'total_leads_dropped' and 'referred_lead' columns with 0
     df['total_leads_droppped'].fillna(0, inplace=True)
@@ -265,7 +265,7 @@ def interactions_mapping(DB_FILE_NAME, DB_PATH, INTERACTION_MAPPING, INDEX_COLUM
     df = pd.read_sql(query, conn)
     
     # Read the interaction mappings from the CSV file
-    interaction_df = pd.read_csv(INTERACTION_MAPPING)
+    interaction_df = pd.read_csv(INTERACTION_MAPPING,index_col=0)
     
 #     # Perform interaction mapping
 #     for i, row in interaction_df.iterrows():
@@ -303,7 +303,7 @@ def interactions_mapping(DB_FILE_NAME, DB_PATH, INTERACTION_MAPPING, INDEX_COLUM
 
     # Save the model input DataFrame as a table in the database
     model_input = df.set_index(INDEX_COLUMNS_TRAINING if 'app_complete_flag' in df.columns else INDEX_COLUMNS_INFERENCE)
-    model_input.to_sql('model_input', conn, if_exists='replace')
+    model_input.to_sql('model_input', conn, if_exists='replace',index=False)
     
     # Close the database connection
     conn.close()

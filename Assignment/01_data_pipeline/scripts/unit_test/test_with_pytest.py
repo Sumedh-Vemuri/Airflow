@@ -1,7 +1,8 @@
 ##############################################################################
 # Import the necessary modules
 # #############################################################################
-
+import pandas as pd
+import sqlite3
 
 
 ###############################################################################
@@ -23,8 +24,32 @@ def test_load_data_into_db():
         output=test_get_data()
 
     """
-    
-    
+    # Create a connection to the original database
+    db_file = DB_PATH + '/' + DB_FILE_NAME
+    conn = sqlite3.connect(db_file)
+
+    # Read the processed data from the 'loaded_data' table
+    query = "SELECT * FROM loaded_data"
+    df_loaded_data = pd.read_sql(query, conn)
+
+    # Close the connection to the original database
+    conn.close()
+
+    # Create a connection to the test SQLite database
+    test_conn = sqlite3.connect(UNIT_TEST_DB_FILE_NAME)
+
+    # Read the test data from the 'loaded_data_test_case' table
+    test_query = "SELECT * FROM loaded_data_test_case"
+    df_test_data = pd.read_sql(test_query, test_conn)
+
+    # Close the connection to the test database
+    test_conn.close()
+
+    # Compare the processed data with the test data
+    assert df_loaded_data.equals(df_test_data), 'Test failed: Data does not match'
+
+    print('All test cases passed successfully.')
+
 
 ###############################################################################
 # Write test cases for map_city_tier() function

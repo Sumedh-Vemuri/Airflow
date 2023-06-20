@@ -255,7 +255,7 @@ def interactions_mapping(DB_FILE_NAME, DB_PATH, INTERACTION_MAPPING, INDEX_COLUM
     SAMPLE USAGE
         interactions_mapping()
     '''
-    
+   
    # Create a connection to the SQLite database
     db_file = DB_PATH + '/' + DB_FILE_NAME
     conn = sqlite3.connect(db_file)
@@ -283,11 +283,11 @@ def interactions_mapping(DB_FILE_NAME, DB_PATH, INTERACTION_MAPPING, INDEX_COLUM
     df_unpivot['interaction_value'] = df_unpivot['interaction_value'].fillna(0)
     
     # map interaction type column with the mapping file to get interaction mapping
-    df = pd.merge(df_unpivot, df_event_mapping, on='interaction_type', how='left')
+    df = pd.merge(df_unpivot, interaction_df, on='interaction_type', how='left')
     
         
     # Drop the original interaction columns
-    df.drop(interaction_df['interaction_type'], axis=1, inplace=True)
+    df.drop(df['interaction_type'], axis=1, inplace=True)
 
     df_pivot = df.pivot_table(
         values='interaction_value', index=['created_date', 'city_tier', 'first_platform_c',
